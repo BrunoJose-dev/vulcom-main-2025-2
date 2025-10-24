@@ -129,70 +129,77 @@ controller.delete = async function(req, res) {
 }
 
 
-controller.login = async function(req, res) {
+controller.login = async function (req, res) {
   try {
-
-      // Busca o usuário no BD usando o valor dos campos
-      // "username" OU "email"
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { username: req.body?.username },
-            { email: req.body?.email }
-          ]
-        }
-      })
-
-      // Se o usuário não for encontrado, retorna
-      // HTTP 401: Unauthorized
-      if(! user) return res.status(401).end()
-
-      // REMOVENDO VULNERABILIDADE DE AUTENTICAÇÃO FIXA
-      // if(req.body?.username === 'admin' && req.body?.password === 'admin123') passwordIsValid = true
-      // else passwordIsValid = user.password === req.body?.password
-      // passwordIsValid = user.password === req.body?.password
-      
-         // Chamando bcrypt.compare() para verificar se o hash da senha
-      // enviada coincide com o hash da senha armazenada no BD
-      const passwordIsValid = await bcrypt.compare(req.body?.password, user.password)
-
-      // Se a senha estiver errada, retorna
-      // HTTP 401: Unauthorized
-      if(! passwordIsValid) return res.status(401).end()
-
-      // Por motivos de segurança, exclui o campo "password" dos dados do usuário
-      // para que ele não seja incluído no token
-      if(user.password) delete user.password
-
-      // Usuário e senha OK, passamos ao procedimento de gerar o token
-      const token = jwt.sign(
-        user,                       // Dados do usuário
-        process.env.TOKEN_SECRET,   // Senha para criptografar o token
-        { expiresIn: '24h' }        // Prazo de validade do token
-      )
+    // Busca o usuário no BD usando o valor dos campos
+    // "username" OU "email"
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: req.body?.username },
+          { email: req.body?.email }
+        ]
+      }
+    })
 
 
-      // Formamos o cookie para enviar ao front-end
-      res.cookie(process.env.AUTH_COOKIE_NAME, token, {
-        httpOnly: true, // O cookie ficará inacessível para o JS no front-end
-        secure: true,   // O cookie será criptografado em conexões https
-        sameSite: 'None',
-        path: '/',
-        maxAge: 24 * 60 * 60 * 100  // 24h
-      })
+    // Se o usuário não for encontrado, retorna
+    // HTTP 401: Unauthorized
+    if(! user) {
+      console.error('ERRO DE LOGIN: usuário não encontrado')
+      return res.status(401).end()
+    }
 
-      // Retorna o token e o usuário autenticado com
-      // HTTP 200: OK (implícito)
-      res.send({token, user})
 
+    // Usuário encontrado, vamos conferir a senha
+    const passwordIsValid = await bcrypt.compare(req.body?.password, user.password)
+
+
+    // Se a senha estiver errada, retorna
+    // HTTP 401: Unauthorized
+    if(! passwordIsValid) {
+      console.error('ERRO DE LOGIN: senha inválida')
+      return res.status(401).end()
+    }
+
+
+    // Deleta o campo "password" do objeto "user" antes de usá-lo
+    // no token e no valor de retorno
+    if(user.password) delete user.password
+
+
+    // Usuário/email e senha OK, passamos ao procedimento de gerar o token
+    const token = jwt.sign(
+      user,                       // Dados do usuário
+      process.env.TOKEN_SECRET,   // Senha para criptografar o token
+      { expiresIn: '24h' }        // Prazo de validade do token
+    )
+
+
+    // Formamos o cookie para enviar ao front-end
+    res.cookie(process.env.AUTH_COOKIE_NAME, token, {
+      httpOnly: true,     // Torna o cookie inacessível para JavaScript
+      secure: true,       // O cookie só trafegará em HTTPS ou localhost
+      sameSite: 'None',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000   // 24h
+    })
+
+
+    // Retorna o token e o usuário autenticado, com o status
+    // HTTP 200: OK (implícito)
+    res.send({ user, token })
   }
   catch(error) {
-    console.error(error)
-
+    // Se algo de errado acontecer, cairemos aqui
+    // Nesse caso, vamos exibir o erro no console e enviar
+    // o código HTTP correspondente a erro do servidor
     // HTTP 500: Internal Server Error
+    console.error(error)
     res.status(500).end()
   }
 }
+
 
 
 controller.me = function(req, res) {
