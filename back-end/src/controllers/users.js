@@ -1,10 +1,20 @@
 import prisma from '../database/client.js'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcrypt'
 
 const controller = {}     // Objeto vazio
 
 controller.create = async function(req, res) {
   try {
+
+    // Verifica se existe o campo "password" em "req.body".
+    // Caso positivo, geramos o hash da senha antes de enviá-la
+    // ao BD
+    // (12 na chamada a bcrypt.hash() corresponde ao número de
+    // passos de criptografia utilizados no processo)
+    if(req.body.password) {
+      req.body.password = await bcrypt.hash(req.body.password, 12)
+    }
 
     await prisma.user.create({ data: req.body })
 
@@ -19,9 +29,15 @@ controller.create = async function(req, res) {
   }
 }
 
+
 controller.retrieveAll = async function(req, res) {
   try {
-    const result = await prisma.user.findMany()
+    const result = await prisma.user.findMany(
+      // Omite o campo "password" do resultado
+      // por questão de segurança
+      { omit: { password: true } } 
+    )
+
 
     // HTTP 200: OK (implícito)
     res.send(result)
@@ -37,8 +53,12 @@ controller.retrieveAll = async function(req, res) {
 controller.retrieveOne = async function(req, res) {
   try {
     const result = await prisma.user.findUnique({
+      // Omite o campo "password" do resultado
+      // por questão de segurança
+      omit: { password: true },
       where: { id: Number(req.params.id) }
     })
+
 
     // Encontrou ~> retorna HTTP 200: OK (implícito)
     if(result) res.send(result)
@@ -55,6 +75,15 @@ controller.retrieveOne = async function(req, res) {
 
 controller.update = async function(req, res) {
   try {
+
+    // Verifica se existe o campo "password" em "req.body".
+    // Caso positivo, geramos o hash da senha antes de enviá-la
+    // ao BD
+    // (12 na chamada a bcrypt.hash() corresponde ao número de
+    // passos de criptografia utilizados no processo)
+    if(req.body.password) {
+      req.body.password = await bcrypt.hash(req.body.password, 12)
+    }
 
     const result = await prisma.user.update({
       where: { id: Number(req.params.id) },
@@ -73,6 +102,7 @@ controller.update = async function(req, res) {
     res.status(500).end()
   }
 }
+
 
 controller.delete = async function(req, res) {
   try {
@@ -98,6 +128,7 @@ controller.delete = async function(req, res) {
   }
 }
 
+
 controller.login = async function(req, res) {
   try {
 
@@ -116,14 +147,22 @@ controller.login = async function(req, res) {
       // HTTP 401: Unauthorized
       if(! user) return res.status(401).end()
 
-      // Usuário encontrado, vamos conferir a senha
-      let passwordIsValid
-      if(req.body?.username === 'admin' && req.body?.password === 'admin123') passwordIsValid = true
-      else passwordIsValid = user.password === req.body?.password
+      // REMOVENDO VULNERABILIDADE DE AUTENTICAÇÃO FIXA
+      // if(req.body?.username === 'admin' && req.body?.password === 'admin123') passwordIsValid = true
+      // else passwordIsValid = user.password === req.body?.password
+      // passwordIsValid = user.password === req.body?.password
+      
+         // Chamando bcrypt.compare() para verificar se o hash da senha
+      // enviada coincide com o hash da senha armazenada no BD
+      const passwordIsValid = await bcrypt.compare(req.body?.password, user.password)
 
       // Se a senha estiver errada, retorna
       // HTTP 401: Unauthorized
       if(! passwordIsValid) return res.status(401).end()
+
+      // Por motivos de segurança, exclui o campo "password" dos dados do usuário
+      // para que ele não seja incluído no token
+      if(user.password) delete user.password
 
       // Usuário e senha OK, passamos ao procedimento de gerar o token
       const token = jwt.sign(
@@ -131,6 +170,7 @@ controller.login = async function(req, res) {
         process.env.TOKEN_SECRET,   // Senha para criptografar o token
         { expiresIn: '24h' }        // Prazo de validade do token
       )
+
 
       // Formamos o cookie para enviar ao front-end
       res.cookie(process.env.AUTH_COOKIE_NAME, token, {
@@ -153,6 +193,7 @@ controller.login = async function(req, res) {
     res.status(500).end()
   }
 }
+
 
 controller.me = function(req, res) {
   // Retorna as informações do usuário autenticado
