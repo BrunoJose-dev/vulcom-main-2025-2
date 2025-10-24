@@ -5,6 +5,7 @@ import AuthUserContext from '../contexts/AuthUserContext'
 import useWaiting from '../ui/useWaiting'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import AuthGuard from './AuthGuard'
 
 export default function AuthGuard({ children, adminOnly = false }) {
 
