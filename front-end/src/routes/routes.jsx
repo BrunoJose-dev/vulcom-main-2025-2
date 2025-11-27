@@ -36,7 +36,14 @@ const UserLevel = {
  AUTHENTICATED: 1,
  ADMIN: 2
 }
-
+//AP15:2023 - Falha de autenticação a nível de função: esta vulnerabilidade foi evitada, neste código: 
+//const UserLevel = {
+//ANY: 0,
+//AUTHENTICATED: 1,
+//ADMIN: 2
+//}
+//que define quais os níveis
+//de acesso às rotas da aplicação front-end, Isso impede que usuários comuns acessem funcionalidades restritas, mitigando o risco de elevação de privilégios
 
 const routes = [
  {

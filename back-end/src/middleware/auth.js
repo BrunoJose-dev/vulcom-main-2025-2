@@ -83,3 +83,6 @@ export default function(req, res, next) {
     next()  
   })
 }
+//AP12:2023 - Falha de autenticação: esta vulnerabilidade foi evitada, neste arquivo que faz a 
+//verificação do token de autorização em todas as rotas protegidas da API, garantindo que apenas 
+// usuários autenticados possam acessá-las.
